@@ -2,15 +2,6 @@ import csv
 import datetime
 import matplotlib.pyplot as plt
 
-SUSPECTED = 0
-PROBABLE = 1
-CONFIRMED = 2
-TOTAL = 3
-
-suspectedStr = "Cumulative number of suspected Ebola cases"
-probableStr = "Cumulative number of probable Ebola cases"
-confirmedStr = "Cumulative number of confirmed Ebola cases"
-
 targetCountries = [
     "Guinea",
     "Sierra Leone",
@@ -18,14 +9,31 @@ targetCountries = [
     "Mali"
 ]
 
-data = {
+SUSPECTED = 0
+PROBABLE = 1
+CONFIRMED = 2
+
+suspectedStr = "Cumulative number of suspected Ebola cases"
+probableStr = "Cumulative number of probable Ebola cases"
+confirmedStr = "Cumulative number of confirmed Ebola cases"
+
+dataCategorized = {
     # sample entry:
     # "country": [
     #   [ time series for suspected ],
     #   [ for probable ],
-    #   [ for confirmed ],
-    #   [ for total ]
+    #   [ for confirmed ]
     # ]
+}
+
+useCategories = [
+    SUSPECTED,
+    PROBABLE,
+    CONFIRMED
+]
+
+data = {
+    # "country": [ time series ]
 }
 
 # Takes a date string, returns a datetime.date object
@@ -79,8 +87,8 @@ with open("ebola_data_db_format.csv", "r") as csvFile:
         if country not in targetCountries:
             continue
 
-        if country not in data:
-            data[country] = [[0] * timeSize,
+        if country not in dataCategorized:
+            dataCategorized[country] = [[0] * timeSize,
                 [0] * timeSize,
                 [0] * timeSize,
                 [0] * timeSize]
@@ -89,9 +97,17 @@ with open("ebola_data_db_format.csv", "r") as csvFile:
         number = int(float(row[3]))
         dayIndex = date - minDate
         dayIndex = dayIndex.days
-        data[country][category][dayIndex] = number
+        dataCategorized[country][category][dayIndex] = number
 
-for country, countryData in data:
-    print(countryData)
-#    for categoryData in data:
-#        print(categoryData)
+for country, countryData in dataCategorized.items():
+    for categoryData in countryData:
+        lastNonZero = -1
+        for i in range(len(categoryData)):
+            if categoryData[i] == 0:
+                if lastNonZero != -1:
+                    categoryData[i] = lastNonZero
+            else:
+                lastNonZero = categoryData[i]
+
+for country, countryData in dataCategorized.items():
+    pass
