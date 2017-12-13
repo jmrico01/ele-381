@@ -3,11 +3,9 @@ import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 
-targetCountries = [
-    "Sierra Leone",
-    #"Guinea",
-    #"Liberia"
-]
+CAT_SUSP = 0
+CAT_PROB = 1
+CAT_CONF = 2
 
 # Takes a date string, returns a datetime.date object
 # Returns None if invalid date string
@@ -21,19 +19,18 @@ def ParseDate(dateStr):
     day = int(dateStrArray[2])
     return datetime.date(year, month, day)
 
-def ReadData(dataFilePath, targetCountries, plot = False):
+def ReadData(dataFilePath, targetCountries, categories,
+    doSmooth, smoothWnd, plot = False):
+    # Returns [data, n, startDate, endDate]
     N_TIMESERIES = -1
     data = {
         # "country": [ time series ]
     }
 
-    SUSPECTED = 0
-    PROBABLE = 1
-    CONFIRMED = 2
     suspectedStr = "Cumulative number of suspected Ebola cases"
     probableStr = "Cumulative number of probable Ebola cases"
     confirmedStr = "Cumulative number of confirmed Ebola cases"
-    dataCategorized = {
+    dataExt = {
         # sample entry:
         # "country": [
         #   [ time series for suspected ],
@@ -42,11 +39,12 @@ def ReadData(dataFilePath, targetCountries, plot = False):
         # ]
     }
 
+    minDate = datetime.date.max
+    maxDate = datetime.date.min
+
     with open(dataFilePath, "r") as csvFile:
         reader = csv.reader(csvFile)
         rows = []
-        minDate = datetime.date.max
-        maxDate = datetime.date.min
         for row in reader:
             date = ParseDate(row[2])
             if date == None:
@@ -60,8 +58,8 @@ def ReadData(dataFilePath, targetCountries, plot = False):
         
         #print("Minimum date: " + str(minDate))
         #print("Maximum date: " + str(maxDate))
-        print("Start date: " + str(minDate))
-        print("End date:   " + str(maxDate))
+        #print("Start date: " + str(minDate))
+        #print("End date:   " + str(maxDate))
         #print("Maximum index: " + str((maxDate - minDate).days))
         maxDelta = maxDate - minDate
         N_TIMESERIES = maxDelta.days + 1
@@ -69,11 +67,11 @@ def ReadData(dataFilePath, targetCountries, plot = False):
         for row in rows:
             category = -1
             if row[0] == suspectedStr:
-                category = SUSPECTED
+                category = CAT_SUSP
             elif row[0] == probableStr:
-                category = PROBABLE
+                category = CAT_PROB
             elif row[0] == confirmedStr:
-                category = CONFIRMED
+                category = CAT_CONF
 
             if category == -1:
                 continue
@@ -82,8 +80,8 @@ def ReadData(dataFilePath, targetCountries, plot = False):
             if country not in targetCountries:
                 continue
 
-            if country not in dataCategorized:
-                dataCategorized[country] = [
+            if country not in dataExt:
+                dataExt[country] = [
                     [-1] * N_TIMESERIES,
                     [-1] * N_TIMESERIES,
                     [-1] * N_TIMESERIES
@@ -93,31 +91,43 @@ def ReadData(dataFilePath, targetCountries, plot = False):
             number = int(float(row[3]))
             dayIndex = date - minDate
             dayIndex = dayIndex.days
-            dataCategorized[country][category][dayIndex] = number
+            dataExt[country][category][dayIndex] = number
 
-    for country, countryData in dataCategorized.items():
-        for categoryData in countryData:
+    for country in dataExt:
+        for category in range(len(dataExt[country])):
             lastValue = -1
-            for i in range(len(categoryData)):
-                if categoryData[i] == -1:
+            for i in range(N_TIMESERIES):
+                if dataExt[country][category][i] == -1:
                     if lastValue != -1:
-                        categoryData[i] = lastValue
+                        dataExt[country][category][i] = lastValue
                     else:
-                        categoryData[i] = 0
+                        dataExt[country][category][i] = 0
                 else:
-                    lastValue = categoryData[i]
+                    lastValue = dataExt[country][category][i]
+            
+            i0 = dataExt[country][category][0]
+            for i in range(N_TIMESERIES):
+                dataExt[country][category][i] -= i0
+    
+    for country, countryData in dataExt.items():
+        data[country] = [0] * N_TIMESERIES
+        for i in range(N_TIMESERIES):
+            for category in categories:
+                data[country][i] += countryData[category][i]
 
-    for country, countryData in dataCategorized.items():
-        data[country] = np.array(countryData[CONFIRMED])
-        data[country] -= data[country][0]
+        if doSmooth:
+            data[country] = np.convolve(data[country],
+                np.ones(smoothWnd,) / smoothWnd, mode="valid")
 
-    #exit()
-    # plotting
-    for country, infected in data.items():
-        print("Initial infected: " + str(infected[0]))
-        window = 10
-        infected = np.convolve(infected, np.ones(window,) / window, mode="valid")
-        plt.plot(infected)
-        
-        plt.title(country)
-        plt.show()
+
+    if (plot):
+        for country, infected in data.items():
+            plt.plot(infected)
+            plt.title(country)
+            plt.show()
+    
+    return [data, N_TIMESERIES, minDate, maxDate]
+
+if __name__ == "__main__":
+    ReadData("ebola_data_db_format.csv",
+        ["Sierra Leone"], [CAT_CONF], True, 5, True)
