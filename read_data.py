@@ -110,7 +110,7 @@ def ReadData(dataFilePath, targetCountries, categories,
                 dataExt[country][category][i] -= i0
     
     for country, countryData in dataExt.items():
-        data[country] = np.empty((N_TIMESERIES,))
+        data[country] = np.zeros((N_TIMESERIES,))
         for category in categories:
             data[country] += np.array(countryData[category])
 
@@ -125,7 +125,7 @@ def ReadData(dataFilePath, targetCountries, categories,
             plt.title(country)
             plt.show()
     
-    return [data, N_TIMESERIES, minDate, maxDate]
+    return [data, len(data[targetCountries[0]]), minDate, maxDate]
 
 if __name__ == "__main__":
     ReadData("ebola_data_db_format.csv",
