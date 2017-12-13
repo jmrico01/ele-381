@@ -52,6 +52,52 @@ startData = {
         0
     ]
 }
+bestData = {
+    "Sierra Leone": [
+        [
+            1.5932992983e-09,
+            0.0114221593
+        ],
+        [
+            1.59937781919e-09,
+            0.01142412728,
+            0.71
+        ],
+    ],
+    "Guinea": [
+        [
+            3.54610225193e-10,
+            0.00458655495867,
+        ],
+        [
+            3.97879216751e-10,
+            0.0051461993053,
+            0.71
+        ],
+    ],
+    "Liberia": [
+        [
+            1.59937781919e-09,
+            0.01142412728
+        ],
+        [
+            1.59937781919e-09,
+            0.01142412728,
+            0.71
+        ],
+    ],
+    "total": [
+        [
+            6.70074902712e-10,
+            0.0161597245118
+        ],
+        [
+            6.83796534099e-10,
+            0.0164950007311,
+            0.71
+        ],
+    ],
+}
 
 def PrintProgress(count, total, status=''):
     bar_len = 60
@@ -140,13 +186,11 @@ def BatchSIR(T, modelInd, startS, startI, startR,
 
         dataVal = GetDataValue(t, T - 1, data)
         diff = out - dataVal
-        if dataVal != 0:
-            diff /= dataVal
         errors += (diff * diff) / T
     
     if progress:
         print("")
-    return np.sqrt(errors)
+    return np.sqrt(errors) / np.average(data)
 
 def RunModel(T, modelInd, startS, startI, startR, params):
     # Run a single instance of SIR for the given parameters.
@@ -190,64 +234,18 @@ def CalcError(model, data):
     return np.sqrt(np.sum(diff * diff) / len(diff)) / np.average(data)
 
 def CalcCoefValues(mid, orderOfMag, n):
-    exp = 8.0
+    exp = 2.0
     values = np.linspace(0.0, 1.0, n)**exp
     minVal = mid * 10.0**orderOfMag
     maxVal = mid / 10.0**orderOfMag
     values = values * (maxVal - minVal) + minVal
     return values
 
-def Present():
-    T = 10000
-    country = "total"
-    modelInd = 1
-    bestData = {
-        "Sierra Leone": [
-            [
-                1.5932992983e-09,
-                0.0114221593
-            ],
-            [
-                1.59937781919e-09,
-                0.01142412728,
-                0.71
-            ],
-        ],
-        "Guinea": [
-            [
-                3.54610225193e-10,
-                0.00458655495867,
-            ],
-            [
-                3.97879216751e-10,
-                0.0051461993053,
-                0.71
-            ],
-        ],
-        "Liberia": [
-            [
-                1.59937781919e-09,
-                0.01142412728
-            ],
-            [
-                1.59937781919e-09,
-                0.01142412728,
-                0.71
-            ],
-        ],
-        "total": [
-            [
-                0.999e-9,
-                0.0241195828241
-            ],
-            [
-                0.9991e-9,
-                0.02412289459,
-                0.71
-            ],
-        ],
-    }
+T = 10000
+country = "total"
+modelInd = 1
 
+def Present():
     [S, I, R, out] = RunModel(T, modelInd,
         startData[country][0], startData[country][1], startData[country][2],
         bestData[country][modelInd])
@@ -267,27 +265,19 @@ def Present():
     plt.show()
 
 def Optimize():
-    # BEST SO FAR
-    # Beta: 1.59937781919e-09
-    # Gamma: 0.01142412728
-    # > Error: 0.322179010692
-
     supervised = True
 
     print("----- Optimizing SIR Parameters -----")
-    country = "total"
-    modelInd = 0
-    T = 10000
     startS = startData[country][0] # population of Sierra Leone
     startI = startData[country][1] # TODO guess this in a better way
     startR = startData[country][2]
 
     paramIters = 100
-    betaMid = 1e-08
+    betaMid = bestData[country][modelInd][0]
     #betaRangeInitial = 1
-    betaRange = 1 # in orders of magnitude
+    betaRange = 0.8 # in orders of magnitude
 
-    gammaMid = 0.019
+    gammaMid = bestData[country][modelInd][1]
     #gammaRangeInitial = 0.
     gammaRange = 0.1
 
@@ -298,7 +288,7 @@ def Optimize():
 
     minError = 1000.0
     minParams = [-1, -1]
-    while minError > 0.1: # Probably not feasible
+    while minError > 0.01: # Probably not feasible, doesn't matter
         beta = CalcCoefValues(betaMid, betaRange, paramIters)
         gamma = CalcCoefValues(gammaMid, gammaRange, paramIters)
         print("GREEDY SEARCH ITERATION")
@@ -320,14 +310,9 @@ def Optimize():
             betaMid = beta[minBetaInd]
             gammaMid = gamma[minGammaInd]
             minParams = [betaMid, gammaMid]
-            if (errDiff < 0.0000000000001):
-                print("ERROR IMPROVED MARGINALLY. RESETTING RANGE...")
-                betaRange = betaRangeInitial
-                gammaRange = gammaRangeInitial
-            else:
-                print("ERROR IMPROVED")
-                betaRange *= dRange
-                gammaRange *= dRange
+            print("ERROR IMPROVED")
+            betaRange *= dRange
+            gammaRange *= dRange
             
             print("Beta: " + str(betaMid))
             print("Gamma: " + str(gammaMid))
@@ -367,9 +352,18 @@ def Optimize():
     #print("gamma: " + str(minParams[1]))
     #print("error:  " + str(error))
 
-Present()
-#Optimize()
-exit()
+if len(sys.argv) == 2:
+    if sys.argv[1] == "opt":
+        Optimize()
+        exit()
+    elif sys.argv[1] == "present":
+        Present()
+        exit()
+    elif sys.argv[1] == "show":
+        pass
+else:
+    Present()
+    exit()
 
 T = 10000
 model = 1
