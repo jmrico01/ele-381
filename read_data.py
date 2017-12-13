@@ -118,6 +118,9 @@ def ReadData(dataFilePath, targetCountries, categories,
             data[country] = np.convolve(data[country],
                 np.ones(smoothWnd,) / smoothWnd, mode="valid")
 
+    data["total"] = np.zeros((len(data[targetCountries[0]]),))
+    for country in targetCountries:
+        data["total"] += data[country]
 
     if (plot):
         for country, infected in data.items():

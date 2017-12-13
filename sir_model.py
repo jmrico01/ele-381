@@ -45,6 +45,11 @@ startData = {
         4.39e6,
         100,
         0
+    ],
+    "total": [
+        7e6 + 11.8e6 + 4.39e6,
+        200 + 250 + 100,
+        0
     ]
 }
 
@@ -180,8 +185,9 @@ def ResampleData(src, dst):
 
 def CalcError(model, data):
     modelResample = ResampleData(model, data)
-    diff = np.divide(modelResample - data, data, where=data!=0)
-    return np.sqrt(np.sum(diff * diff) / len(diff))
+    #diff = np.divide(modelResample - data, data, where=data!=0)
+    diff = modelResample - data
+    return np.sqrt(np.sum(diff * diff) / len(diff)) / np.average(data)
 
 def CalcCoefValues(mid, orderOfMag, n):
     exp = 8.0
@@ -193,7 +199,7 @@ def CalcCoefValues(mid, orderOfMag, n):
 
 def Present():
     T = 10000
-    country = "Guinea"
+    country = "total"
     modelInd = 1
     bestData = {
         "Sierra Leone": [
@@ -228,7 +234,18 @@ def Present():
                 0.01142412728,
                 0.71
             ],
-        ]
+        ],
+        "total": [
+            [
+                0.999e-9,
+                0.0241195828241
+            ],
+            [
+                0.9991e-9,
+                0.02412289459,
+                0.71
+            ],
+        ],
     }
 
     [S, I, R, out] = RunModel(T, modelInd,
@@ -258,28 +275,28 @@ def Optimize():
     supervised = True
 
     print("----- Optimizing SIR Parameters -----")
-    country = "Liberia"
-    modelInd = 1
+    country = "total"
+    modelInd = 0
     T = 10000
     startS = startData[country][0] # population of Sierra Leone
     startI = startData[country][1] # TODO guess this in a better way
     startR = startData[country][2]
 
-    paramIters = 200
-    betaMid = 1e-8
+    paramIters = 100
+    betaMid = 1e-08
     #betaRangeInitial = 1
     betaRange = 1 # in orders of magnitude
 
-    gammaMid = 0.1
+    gammaMid = 0.019
     #gammaRangeInitial = 0.
     gammaRange = 0.1
 
     deadRate = 0.71
 
     nextBacktrack = 1
-    dRange = 0.5
+    dRange = 0.9
 
-    minError = 1.0
+    minError = 1000.0
     minParams = [-1, -1]
     while minError > 0.1: # Probably not feasible
         beta = CalcCoefValues(betaMid, betaRange, paramIters)
@@ -296,6 +313,7 @@ def Optimize():
         [minBetaInd, minGammaInd] = np.unravel_index(np.argmin(errors),
             (paramIters, paramIters))
         iterMinError = errors[minBetaInd, minGammaInd]
+        plotCurve = False
         if iterMinError < minError:
             errDiff = minError - iterMinError
             minError = iterMinError
@@ -314,7 +332,25 @@ def Optimize():
             print("Beta: " + str(betaMid))
             print("Gamma: " + str(gammaMid))
             print("> Error: " + str(iterMinError))
-            params = [betaMid, gammaMid]
+            params = [beta[minBetaInd], gamma[minGammaInd]]
+            if modelInd == 1:
+                params.append(deadRate)
+            [_, _, _, out] = RunModel(T, modelInd,
+                startS, startI, startR, params)
+            print("> Real Error: " + str(CalcError(out, data[country])))
+            plotCurve = True
+        else:
+            # Unused. This doesn't work very well.
+            print("ERROR WORSENED (" + str(iterMinError) + "), BACKTRACKING")
+            if nextBacktrack == 0:
+                betaRange /= dRange
+            elif nextBacktrack == 1:
+                gammaRange /= dRange
+            nextBacktrack = (nextBacktrack + 1) % 2
+            plotCurve = True
+
+        if plotCurve:
+            params = [beta[minBetaInd], gamma[minGammaInd]]
             if modelInd == 1:
                 params.append(deadRate)
             [_, _, _, out] = RunModel(T, modelInd,
@@ -325,14 +361,6 @@ def Optimize():
                 plt.plot(outResample)
                 plt.plot(data[country])
                 plt.show()
-        else:
-            # Unused. This doesn't work very well.
-            print("ERROR WORSENED (" + str(iterMinError) + "), BACKTRACKING")
-            if nextBacktrack == 0:
-                betaRange /= dRange
-            elif nextBacktrack == 1:
-                gammaRange /= dRange
-            nextBacktrack = (nextBacktrack + 1) % 2
     
     #print("-- Done --")
     #print("beta:  " + str(minParams[0]))
