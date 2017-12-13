@@ -281,6 +281,10 @@ def Optimize():
     #gammaRangeInitial = 0.
     gammaRange = 0.1
 
+    # TODO PRESENTATION ONLY!
+    betaMid = 6e-10
+    gammaMid = 0.01
+
     deadRate = 0.71
 
     nextBacktrack = 1
