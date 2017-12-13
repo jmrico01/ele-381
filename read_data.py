@@ -21,7 +21,7 @@ def ParseDate(dateStr):
 
 def ReadData(dataFilePath, targetCountries, categories,
     doSmooth, smoothWnd, plot = False):
-    # Returns [data, n, startDate, endDate]
+    # Returns [data, n, start date, end date]
     N_TIMESERIES = -1
     data = {
         # "country": [ time series ]
@@ -110,10 +110,9 @@ def ReadData(dataFilePath, targetCountries, categories,
                 dataExt[country][category][i] -= i0
     
     for country, countryData in dataExt.items():
-        data[country] = [0] * N_TIMESERIES
-        for i in range(N_TIMESERIES):
-            for category in categories:
-                data[country][i] += countryData[category][i]
+        data[country] = np.empty((N_TIMESERIES,))
+        for category in categories:
+            data[country] += np.array(countryData[category])
 
         if doSmooth:
             data[country] = np.convolve(data[country],
