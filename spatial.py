@@ -1,9 +1,14 @@
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
 
 T = 10000
-N = 4 # Number of locations
+if len(sys.argv) != 2:
+    print("Expected 1 argument")
+    exit()
+    
+N = int(sys.argv[1]) # Number of locations
 
 startS = np.empty((N,))
 startI = np.empty((N,))
