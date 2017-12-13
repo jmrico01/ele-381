@@ -7,7 +7,7 @@ T = 10000
 if len(sys.argv) != 2:
     print("Expected 1 argument")
     exit()
-    
+
 N = int(sys.argv[1]) # Number of locations
 
 startS = np.empty((N,))
@@ -20,7 +20,7 @@ gamma = np.empty((N,))
 dRate = 0.71
 
 startSAvg = 8e6
-startSRange = -1
+startSRange = -0.8
 startS = np.random.normal(startSAvg,
     startSAvg * 10**startSRange, startS.shape)
 startIAvg = 1000
@@ -29,7 +29,7 @@ startI = np.random.normal(startIAvg,
     startIAvg * 10**startIRange, startI.shape)
 totalPop = startS + startI
 betaAvg = 1e-10
-betaRange = -2
+betaRange = -1.0
 gammaAvg = 2e-4
 gammaRange = -1.5
 # Randomize beta, gamma
@@ -104,19 +104,23 @@ plt.subplots_adjust(left = 0.1, bottom = 0.2)
 def PlotCircles(St, It, Dt):
     gridN = int(np.ceil(np.sqrt(N)))
     circleRadius = 1.0 / gridN / 4.0
-    margin = 0.15
+    margin = 0.2
     ax.clear()
     for loc in range(N):
         (j, i) = np.unravel_index(loc, (gridN, gridN))
         posX = margin + (1.0 - margin * 2.0) * (float(i) / (gridN-1))
         posY = margin + (1.0 - margin * 2.0) * (float(j) / (gridN-1))
-        fracS = St[loc] / totalPop[loc] * circleRadius
-        fracI = It[loc] / totalPop[loc] * (circleRadius - fracS) + fracS
-        circle = plt.Circle((posX, posY), circleRadius, color='black')
+        fracS = St[loc] / totalPop[0]
+        fracI = It[loc] / totalPop[0]
+        fracD = Dt[loc] / totalPop[0]
+        circleS = fracS * circleRadius
+        circleI = circleS + fracI * circleRadius
+        circleD = circleI + fracD * circleRadius
+        circle = plt.Circle((posX, posY), circleD, color='black')
         ax.add_artist(circle)
-        circle = plt.Circle((posX, posY), fracI, color='red')
+        circle = plt.Circle((posX, posY), circleI, color='red')
         ax.add_artist(circle)
-        circle = plt.Circle((posX, posY), fracS, color='green')
+        circle = plt.Circle((posX, posY), circleS, color='green')
         ax.add_artist(circle)
 
 PlotCircles(S[:, 0], I[:, 0], D[:, 0])
