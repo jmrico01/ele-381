@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
 
-import read-data
+import read_data
 
 def GetDeltasSIR(S, I, R, beta, gamma):
     # Takes in coefficients and the S, I, R of the previous time step
@@ -34,8 +34,8 @@ def RunSIR(startS, startI, startR, beta, gamma, T):
     
     return [S, I, R, out]
 
-read-data.ReadData("ebola_data_db_format.csv",
-        ["Sierra Leone"], [CAT_CONF], True, 5, True)
+read_data.ReadData("ebola_data_db_format.csv",
+        ["Sierra Leone"], [read_data.CAT_CONF], True, 5, True)
 
 T = 100000
 
