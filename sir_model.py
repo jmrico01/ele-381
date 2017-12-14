@@ -88,16 +88,20 @@ bestData = {
     ],
     "total": [
         [
-            6.70074902712e-10,
+            6.70014902712e-10,
             0.0161597245118
         ],
         [
-            6.83796534099e-10,
-            0.0164950007311,
+            6.7880248618e-10,
+            0.0163670529134,
             0.71
         ],
     ],
 }
+
+T = 10000
+country = "total"
+modelInd = 1
 
 def PrintProgress(count, total, status=''):
     bar_len = 60
@@ -241,10 +245,6 @@ def CalcCoefValues(mid, orderOfMag, n):
     values = values * (maxVal - minVal) + minVal
     return values
 
-T = 10000
-country = "total"
-modelInd = 1
-
 def Present():
     [S, I, R, out] = RunModel(T, modelInd,
         startData[country][0], startData[country][1], startData[country][2],
@@ -264,6 +264,11 @@ def Present():
     plt.legend(handles=[lineModel, lineData])
     plt.show()
 
+def CalcErrorFromParams(T, modelInd, startS, startI, startR, params):
+    [_, _, _, out] = RunModel(T, modelInd,
+        startS, startI, startR, params)
+    return CalcError(out, data[country])
+
 def Optimize():
     supervised = True
 
@@ -275,23 +280,26 @@ def Optimize():
     paramIters = 100
     betaMid = bestData[country][modelInd][0]
     #betaRangeInitial = 1
-    betaRange = 0.8 # in orders of magnitude
+    betaRange = 0.1 # in orders of magnitude
 
     gammaMid = bestData[country][modelInd][1]
     #gammaRangeInitial = 0.
     gammaRange = 0.1
 
-    # TODO PRESENTATION ONLY!
-    betaMid = 6e-10
-    gammaMid = 0.01
-
     deadRate = 0.71
 
     nextBacktrack = 1
-    dRange = 0.9
+    dRange = 0.5
 
-    minError = 1000.0
+    params = [betaMid, gammaMid]
+    if modelInd == 1:
+        params.append(deadRate)
+
+    minError = CalcErrorFromParams(
+        T, modelInd, startS, startI, startR, params
+    )
     minParams = [-1, -1]
+    print("Initial error: " + str(minError))
     while minError > 0.01: # Probably not feasible, doesn't matter
         beta = CalcCoefValues(betaMid, betaRange, paramIters)
         gamma = CalcCoefValues(gammaMid, gammaRange, paramIters)
@@ -324,9 +332,9 @@ def Optimize():
             params = [beta[minBetaInd], gamma[minGammaInd]]
             if modelInd == 1:
                 params.append(deadRate)
-            [_, _, _, out] = RunModel(T, modelInd,
-                startS, startI, startR, params)
-            print("> Real Error: " + str(CalcError(out, data[country])))
+            print("> Real Error: " + str(CalcErrorFromParams(
+                T, modelInd, startS, startI, startR, params
+            )))
             plotCurve = True
         else:
             # Unused. This doesn't work very well.
@@ -344,7 +352,6 @@ def Optimize():
                 params.append(deadRate)
             [_, _, _, out] = RunModel(T, modelInd,
                 startS, startI, startR, params)
-            print("> Real Error: " + str(CalcError(out, data[country])))
             if supervised:
                 outResample = ResampleData(out, data[country])
                 plt.plot(outResample)
@@ -365,6 +372,24 @@ if len(sys.argv) == 2:
         exit()
     elif sys.argv[1] == "show":
         pass
+    elif sys.argv[1] == "scratch":
+        [_, _, _, out0] = RunModel(T, 0,
+            startData["total"][0], startData["total"][1], startData["total"][2],
+            bestData["total"][0])
+        [_, _, _, out1] = RunModel(T, 1,
+            startData["total"][0], startData["total"][1], startData["total"][2],
+            bestData["total"][1])
+        out0 = ResampleData(out0, data["total"])
+        out1 = ResampleData(out1, data["total"])
+        lineM0, = plt.plot(out0, label="SIR")
+        lineM1, = plt.plot(out1, label="SIDS")
+        lineData,  = plt.plot(data["total"], label="Data")
+        plt.title("Model Predictions")
+        plt.xlabel("Time (days since 08/29/2014)")
+        plt.ylabel("Cumulative number of Ebola cases")
+        plt.legend(handles=[lineM0, lineM1, lineData])
+        plt.show()
+        exit()
 else:
     Present()
     exit()
