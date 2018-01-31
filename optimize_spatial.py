@@ -169,6 +169,7 @@ def Optimize():
 
     print
     print("Searching...")
+    sys.stdout.flush()
     WriteBestParams(minBeta, minGamma)
 
     while True: #np.sum(errors["single"]) <= np.sum(errors["spatial"]):
@@ -189,6 +190,7 @@ def Optimize():
             print(errors)
             print(minBeta)
             print(minGamma)
+            sys.stdout.flush()
             WriteBestParams(minBeta, minGamma)
 
             betaStart = minBeta
