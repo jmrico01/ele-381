@@ -3,40 +3,87 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
 
-T = 10000
-if len(sys.argv) != 2:
-    print("Expected 1 argument")
-    exit()
+import read_data
 
-N = int(sys.argv[1]) # Number of locations
+# -- Import data
+dataFilePath = "ebola_data_db_format.csv"
+countries = [
+    "Sierra Leone",
+    "Guinea",
+    "Liberia"
+]
+N = len(countries)
+categories = [
+    read_data.CAT_CONF
+]
+[data, n, dateStart, dateEnd] = read_data.ReadData(dataFilePath,
+    countries, categories, True, 5, False)
+print("----- Data Imported -----")
+print("Data points: " + str(n))
+print("Start date:  " + str(dateStart))
+print("End date:    " + str(dateEnd))
+print("")
+
+startData = [
+    [ # "Sierra Leone": [
+        7e6,
+        200,
+        0
+    ],
+    [ # "Guinea": [
+        11.8e6,
+        250,
+        0
+    ],
+    [ # "Liberia": [
+        4.39e6,
+        100,
+        0
+    ]
+]
+bestData = [
+    [ # "Sierra Leone": [
+        1.59937781919e-09,
+        0.01142412728
+    ],
+    [ # "Guinea": [
+        3.97879216751e-10,
+        0.0051461993053
+    ],
+    [ # "Liberia": [
+        1.59937781919e-09,
+        0.01142412728
+    ]
+]
+
+T = 10000
 
 startS = np.empty((N,))
 startI = np.empty((N,))
 startD = np.zeros((N,))
 totalPop = np.empty((N,))
+for i in range(N):
+    startS[i] = startData[i][0]
+    startI[i] = startData[i][1]
+    startD[i] = startData[i][2]
+totalPop = startS + startI + startD
 
-beta = np.empty((N, N))
-gamma = np.empty((N,))
+beta = np.zeros((N, N))
+gamma = np.zeros((N,))
 dRate = 0.71
+for i in range(N):
+    beta[i][i] = bestData[i][0]
+    gamma[i] = bestData[i][1]
 
-startSAvg = 8e6
-startSRange = -0.8
-startS = np.random.normal(startSAvg,
-    startSAvg * 10**startSRange, startS.shape)
-startIAvg = 1000
-startIRange = -0.5
-startI = np.random.normal(startIAvg,
-    startIAvg * 10**startIRange, startI.shape)
-totalPop = startS + startI
-betaAvg = 1e-10
-betaRange = -1.0
-gammaAvg = 2e-4
-gammaRange = -1.5
-# Randomize beta, gamma
-beta = np.random.normal(betaAvg,
-    betaAvg * 10**betaRange, beta.shape)
-gamma = np.random.normal(gammaAvg,
-    gammaAvg * 10**gammaRange, gamma.shape)
+for i in range(N):
+    for j in range(N):
+        if i == j:
+            continue
+
+        beta[i][j] = beta[i][i] * 10**(-1)
+
+print(beta)
+print(gamma)
 
 def CalcDeltas(S, I, D, beta, gamma, dRate):
     betaSI = beta * S[:, None] * I[:, None]
@@ -74,6 +121,58 @@ def RunSpatialSIDS(T, startS, startI, startD, beta, gamma, dRate):
         out[:, t] = out[:, t-1] + dOut
     
     return [S, I, D, out]
+
+[S, I, D, out] = RunSpatialSIDS(T,
+    startS, startI, startD, beta, gamma, dRate)
+
+
+t = np.linspace(0.0, 1.0, T)
+#outS = S[0]#np.sum(S, axis=0)
+outI = np.sum(I, axis=0)
+#outD = D[0]#np.sum(D, axis=0)
+#lineS, = plt.plot(t, outS, color="orange", label="Susceptible")
+lineI, = plt.plot(t, outI, color="red", label="Infected")
+#lineD, = plt.plot(t, outD, color="black", label="Dead")
+plt.xlabel("Time (normalized 0 to 1)")
+plt.ylabel("Number of people")
+#plt.legend(handles=[lineS, lineI, lineD])
+plt.show()
+
+exit()
+# ----- Visualization test -----
+if len(sys.argv) != 2:
+    print("Expected 1 argument")
+    exit()
+
+N = int(sys.argv[1]) # Number of locations
+
+startS = np.empty((N,))
+startI = np.empty((N,))
+startD = np.zeros((N,))
+totalPop = np.empty((N,))
+
+beta = np.empty((N, N))
+gamma = np.empty((N,))
+dRate = 0.71
+
+startSAvg = 8e6
+startSRange = -0.8
+startS = np.random.normal(startSAvg,
+    startSAvg * 10**startSRange, startS.shape)
+startIAvg = 1000
+startIRange = -0.5
+startI = np.random.normal(startIAvg,
+    startIAvg * 10**startIRange, startI.shape)
+totalPop = startS + startI
+betaAvg = 1e-10
+betaRange = -1.0
+gammaAvg = 2e-4
+gammaRange = -1.5
+# Randomize beta, gamma
+beta = np.random.normal(betaAvg,
+    betaAvg * 10**betaRange, beta.shape)
+gamma = np.random.normal(gammaAvg,
+    gammaAvg * 10**gammaRange, gamma.shape)
 
 print("----- Running Spatial SIDS -----")
 #print(startS[0])
