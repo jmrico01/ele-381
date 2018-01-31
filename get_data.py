@@ -1,7 +1,6 @@
 import csv
 import datetime
 import numpy as np
-import matplotlib.pyplot as plt
 
 CAT_SUSPECTED = 0
 CAT_PROBABLE = 1
@@ -218,12 +217,6 @@ def ReadData(dataFilePath, targetCountries, categories,
     data[COUNTRY_TOTAL] = np.zeros((len(data[targetCountries[0]]),))
     for country in targetCountries:
         data[COUNTRY_TOTAL] += data[country]
-
-    if (plot):
-        for country, infected in data.items():
-            plt.plot(infected)
-            plt.title(country)
-            plt.show()
     
     return [data, len(data[targetCountries[0]]), minDate, maxDate]
 
