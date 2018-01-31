@@ -24,7 +24,8 @@ categories = [
 #print("End date:    " + str(dateEnd))
 #print("")
 
-country = get_data.COUNTRY_TOTAL
+#country = get_data.COUNTRY_TOTAL
+country = "Sierra Leone"
 modelInd = 1
 
 def Present(T, modelInd, startS, startI, startR, params, data, country):
@@ -65,12 +66,10 @@ def Optimize():
 
     paramIters = 100
     betaMid = get_data.bestParamsSingle[country][modelInd][0]
-    #betaRangeInitial = 1
-    betaRange = 0.1 # in orders of magnitude
+    betaRange = 0.05 # in orders of magnitude
 
     gammaMid = get_data.bestParamsSingle[country][modelInd][1]
-    #gammaRangeInitial = 0.
-    gammaRange = 0.1
+    gammaRange = 0.05
 
     nextBacktrack = 1
     dRange = 0.5
@@ -94,8 +93,8 @@ def Optimize():
         params = [beta, gamma]
         if modelInd == 1:
             params.append(get_data.FATALITY_RATE)
-        errors = models.BatchSIR(get_data.T, modelInd, startS, startI, startR,
-            data[country], params, True)
+        errors = models.BatchModelSingle(get_data.T, modelInd,
+            startS, startI, startR, data[country], params, True)
 
         [minBetaInd, minGammaInd] = np.unravel_index(np.argmin(errors),
             (paramIters, paramIters))

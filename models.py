@@ -55,7 +55,7 @@ def CalcDeltasSIDS(S, I, R, params):
 
     return [dS, dI, dR, dOut]
 
-def BatchSIR(T, modelInd, startS, startI, startR,
+def BatchModelSingle(T, modelInd, startS, startI, startR,
     data, params, progress = True):
     # Run SIR on every combination of vectors beta & gamma passed in.
     # This version doesn't output the full time series, but an error matrix.

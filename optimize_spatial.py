@@ -1,7 +1,7 @@
 import sys
 import numpy as np
-#import matplotlib.pyplot as plt
-#from matplotlib.widgets import Slider, Button, RadioButtons
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider, Button, RadioButtons
 
 import get_data
 import models
@@ -57,6 +57,81 @@ def Present(T, startS, startI, startD, beta, gamma, dRate, data):
     
     plt.show()
 
+nextComponent = 0
+tweakBeta = True
+def TweakParameters(betaStart, gammaStart):
+    global nextComponent, tweakBeta
+
+    beta = np.copy(betaStart)
+    gamma = np.copy(gammaStart)
+
+    nextComponent = nextComponent + 1
+    if tweakBeta:
+        if nextComponent >= len(gammaStart) * len(gammaStart):
+            nextComponent = 0
+            tweakBeta = False
+    else:
+        if nextComponent >= len(gammaStart):
+            nextComponent = 0
+            tweakBeta = True
+    
+    if tweakBeta:
+        nextInd = np.unravel_index(nextComponent, beta.shape)
+        beta[nextInd] += beta[nextInd] * np.random.uniform(-0.1, 0.1)
+    else:
+        nextInd = nextComponent
+        gamma[nextInd] += gamma[nextInd] * np.random.uniform(-0.05, 0.05)
+
+    """
+    BETA_DFRAC = 0.001
+    beta += beta * np.random.uniform(-BETA_DFRAC, BETA_DFRAC, beta.shape)
+    GAMMA_DFRAC = 0.0001
+    gamma += gamma * np.random.uniform(-GAMMA_DFRAC, GAMMA_DFRAC, gamma.shape)
+    """
+    
+    return beta, gamma
+
+def TweakParametersOriginal(betaStart, gammaStart):
+    beta = np.copy(betaStart)
+    gamma = np.copy(gammaStart)
+    
+    for i in range(N):
+        betaSpreadFrac = np.random.uniform(0.0, 0.005)
+        betaSpread = np.random.uniform(0.0, 1.0, N)
+        #betaSpread[i] = 0.0
+        betaSpread *= beta[i, i] * betaSpreadFrac / np.sum(betaSpread)
+        beta[i, i] -= beta[i, i] * betaSpreadFrac
+        beta[i, :] += betaSpread
+        gamma += gamma * betaSpreadFrac * betaSpread
+
+        """betaModifier = np.random.uniform(-0.005, 0.005)
+        beta[i, i] += beta[i, i] * betaModifier
+        gammaModifier = np.random.uniform(-0.005, 0.005)
+        gamma[i] += gamma[i] * gammaModifier"""
+    
+    return beta, gamma
+
+def WriteBestParams(beta, gamma):
+    N = len(gamma)
+
+    with open("bestParamsSpatial.data", "w") as f:
+        f.write("[\n")
+        for i in range(N):
+            f.write("    [ ")
+            for j in range(N):
+                f.write(str(beta[i, j]))
+                if j != N - 1:
+                    f.write(", ")
+            f.write(" ],\n")
+        f.write("],\n")
+
+        f.write("[ ")
+        for i in range(N):
+            f.write(str(gamma[i]))
+            if i != N - 1:
+                f.write(", ")
+        f.write(" ]")
+
 def Optimize():
     T = get_data.T
     N = len(countries)
@@ -77,28 +152,21 @@ def Optimize():
     errors = models.CalcErrorSpatialFromParams(T, startS, startI, startD,
         betaStart, gammaStart, dRate, get_data.bestParamsSingle,
         data, countries)
+    minErrorDiff = np.sum(errors["spatial"]) - np.sum(errors["single"])
+    minBeta = betaStart
+    minGamma = gammaStart
+
     dummyProgress = 0
-    print("Initial errors:")
+    print("Initial best error: " + str(minErrorDiff))
     print(errors)
 
     print
     print("Searching... (last error diff is displayed)")
+    WriteBestParams(minBeta, minGamma)
 
-    while np.sum(errors["single"]) <= np.sum(errors["spatial"]):
-        beta = np.copy(betaStart)
-        gamma = np.copy(gammaStart)
-        for i in range(N):
-            betaSpreadFrac = np.random.uniform(0.0, 0.005)
-            betaSpread = np.random.uniform(0.0, 1.0, N)
-            betaSpread[i] = 0.0
-            betaSpread *= beta[i, i] * betaSpreadFrac / np.sum(betaSpread)
-            beta[i, i] -= beta[i, i] * betaSpreadFrac
-            beta[i, :] += betaSpread
-
-            betaModifier = np.random.uniform(-0.005, 0.005)
-            beta[i, i] += beta[i, i] * betaModifier
-            gammaModifier = np.random.uniform(-0.005, 0.005)
-            gamma[i] += gamma[i] * gammaModifier
+    while True: #np.sum(errors["single"]) <= np.sum(errors["spatial"]):
+        #beta, gamma = TweakParametersOriginal(betaStart, gammaStart)
+        beta, gamma = TweakParameters(betaStart, gammaStart)
 
         #print(beta)
         #print(gamma)
@@ -106,12 +174,21 @@ def Optimize():
             beta, gamma, dRate, get_data.bestParamsSingle,
             data, countries)
         errorDiff = np.sum(errors["spatial"]) - np.sum(errors["single"])
+        if (errorDiff < minErrorDiff):
+            minErrorDiff = errorDiff
+            minBeta = np.copy(beta)
+            minGamma = np.copy(gamma)
+            print("Minimum error so far: " + str(minErrorDiff))
+            print(errors)
+            print(minBeta)
+            print(minGamma)
+            WriteBestParams(minBeta, minGamma)
+
+            betaStart = minBeta
+            gammaStart = minGamma
+
         dummyProgress = (dummyProgress + 1) % 60
         models.PrintProgress(dummyProgress, 60, str(errorDiff))
-
-    print(beta)
-    print(gamma)
-    print(errors)
 
 if len(sys.argv) == 2:
     if sys.argv[1] == "opt":
