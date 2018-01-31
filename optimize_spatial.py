@@ -67,8 +67,8 @@ def TweakParameters(betaStart, gammaStart):
     beta = np.copy(betaStart)
     gamma = np.copy(gammaStart)
 
-    BETA_DFRAC = 0.05
-    GAMMA_DFRAC = 0.01
+    BETA_DFRAC = 0.1
+    GAMMA_DFRAC = 0.05
 
     nextComponent = nextComponent + 1
     if tweakBeta:
@@ -120,22 +120,24 @@ def WriteBestParams(beta, gamma):
     N = len(gamma)
 
     with open("bestParamsSpatial.data", "w") as f:
-        f.write("[\n")
+        f.write("bestParamsSpatial = [\n")
+        f.write("    [\n")
         for i in range(N):
-            f.write("    [ ")
+            f.write("        [ ")
             for j in range(N):
                 f.write(str(beta[i, j]))
                 if j != N - 1:
                     f.write(", ")
             f.write(" ],\n")
-        f.write("],\n")
+        f.write("    ],\n")
 
-        f.write("[ ")
+        f.write("    [ ")
         for i in range(N):
             f.write(str(gamma[i]))
             if i != N - 1:
                 f.write(", ")
-        f.write(" ]")
+        f.write(" ]\n")
+        f.write("]")
 
 def Optimize():
     T = get_data.T
