@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
 
-import read_data
+import data
 import model_single
 
 def CalcCoefValues(mid, orderOfMag, n):
@@ -42,9 +42,9 @@ countries = [
     "Liberia"
 ]
 categories = [
-    read_data.CAT_CONF
+    data.CAT_CONFIRMED
 ]
-[data, n, dateStart, dateEnd] = read_data.ReadData(dataFilePath,
+[data, n, dateStart, dateEnd] = data.ReadData(dataFilePath,
     countries, categories, True, 5, False)
 #print("----- Data Imported -----")
 #print("Data points: " + str(n))
@@ -52,29 +52,7 @@ categories = [
 #print("End date:    " + str(dateEnd))
 #print("")
 
-startData = {
-    "Sierra Leone": [
-        7e6,
-        200,
-        0
-    ],
-    "Guinea": [
-        11.8e6,
-        250,
-        0
-    ],
-    "Liberia": [
-        4.39e6,
-        100,
-        0
-    ],
-    "total": [
-        7e6 + 11.8e6 + 4.39e6,
-        200 + 250 + 100,
-        0
-    ]
-}
-bestData = {
+bestParams = {
     "Sierra Leone": [
         [
             3.41131913825e-09,
@@ -121,7 +99,6 @@ bestData = {
     ],
 }
 
-T = 10000
 country = "Guinea"
 modelInd = 0
 
@@ -129,16 +106,16 @@ def Optimize():
     supervised = True
 
     print("----- Optimizing SIR Parameters -----")
-    startS = startData[country][0] # population of Sierra Leone
-    startI = startData[country][1] # TODO guess this in a better way
-    startR = startData[country][2]
+    startS = data.startData[country][0]
+    startI = data.startData[country][1]
+    startR = data.startData[country][2]
 
     paramIters = 100
-    betaMid = bestData[country][modelInd][0]
+    betaMid = bestParams[country][modelInd][0]
     #betaRangeInitial = 1
     betaRange = 0.1 # in orders of magnitude
 
-    gammaMid = bestData[country][modelInd][1]
+    gammaMid = bestParams[country][modelInd][1]
     #gammaRangeInitial = 0.
     gammaRange = 0.1
 
@@ -152,7 +129,7 @@ def Optimize():
         params.append(deadRate)
 
     minError = model_single.CalcErrorFromParams(
-        T, modelInd, startS, startI, startR, params,
+        data.T, modelInd, startS, startI, startR, params,
         data[country]
     )
     minParams = [-1, -1]
@@ -166,7 +143,7 @@ def Optimize():
         params = [beta, gamma]
         if modelInd == 1:
             params.append(deadRate)
-        errors = model_single.BatchSIR(T, modelInd, startS, startI, startR,
+        errors = model_single.BatchSIR(data.T, modelInd, startS, startI, startR,
             data[country], params, True)
 
         [minBetaInd, minGammaInd] = np.unravel_index(np.argmin(errors),
@@ -190,7 +167,7 @@ def Optimize():
             if modelInd == 1:
                 params.append(deadRate)
             print("> Real Error: " + str(model_single.CalcErrorFromParams(
-                T, modelInd, startS, startI, startR, params,
+                data.T, modelInd, startS, startI, startR, params,
                 data[country]
             )))
             plotCurve = True
@@ -208,7 +185,7 @@ def Optimize():
             params = [beta[minBetaInd], gamma[minGammaInd]]
             if modelInd == 1:
                 params.append(deadRate)
-            [_, _, _, out] = model_single.RunModel(T, modelInd,
+            [_, _, _, out] = model_single.RunModel(data.T, modelInd,
                 startS, startI, startR, params)
             if supervised:
                 outResample = model_single.ResampleData(out, data[country])
@@ -226,20 +203,26 @@ if len(sys.argv) == 2:
         Optimize()
         exit()
     elif sys.argv[1] == "present":
-        Present(T, modelInd,
-            startData[country][0], startData[country][1], startData[country][2],
-            bestData[country], data[country], country)
+        Present(data.T, modelInd,
+            data.startData[country][0],
+            data.startData[country][1],
+            data.startData[country][2],
+            bestParams[country], data[country], country)
         exit()
     elif sys.argv[1] == "test":
         # Pass through to test below
         pass
     elif sys.argv[1] == "scratch":
-        [_, _, _, out0] = model_single.RunModel(T, 0,
-            startData["total"][0], startData["total"][1], startData["total"][2],
-            bestData["total"][0])
-        [_, _, _, out1] = model_single.RunModel(T, 1,
-            startData["total"][0], startData["total"][1], startData["total"][2],
-            bestData["total"][1])
+        [_, _, _, out0] = model_single.RunModel(data.T, 0,
+            data.startData["total"][0],
+            data.startData["total"][1],
+            data.startData["total"][2],
+            bestParams["total"][0])
+        [_, _, _, out1] = model_single.RunModel(data.T, 1,
+            data.startData["total"][0],
+            data.startData["total"][1],
+            data.startData["total"][2],
+            bestParams["total"][1])
         out0 = model_single.ResampleData(out0, data["total"])
         out1 = model_single.ResampleData(out1, data["total"])
         lineM0, = plt.plot(out0, label="SIR")
@@ -261,7 +244,7 @@ else:
     print("Unrecognized arguments")
     exit()
 
-T = 10000
+testT = 10000
 model = 1
 bestTestStart = [
     12e6,
@@ -281,13 +264,13 @@ bestTestParams = [
 ]
 sliderRange = 2.0
 
-[S, I, R, out] = model_single.RunModel(T, model,
+[S, I, R, out] = model_single.RunModel(testT, model,
     bestTestStart[0], bestTestStart[1], bestTestStart[2],
     bestTestParams[model])
 
 fig, ax = plt.subplots()
 plt.subplots_adjust(left = 0.1, bottom = 0.35)
-t = np.linspace(0.0, 1.0, num = T, endpoint = True)
+t = np.linspace(0.0, 1.0, num = testT, endpoint = True)
 lineS, = plt.plot(t, S, lw=2.0, color='orange', label="Susceptible")
 lineI, = plt.plot(t, I, lw=2.0, color='red', label="Infected")
 lineR, = plt.plot(t, R, lw=2.0, color='blue', label="Recovered")
@@ -313,7 +296,7 @@ def UpdatePlot(val):
     gamma = sliderGamma.val
     bestTestParams[model][0] = beta
     bestTestParams[model][1] = gamma
-    [S, I, R, output] = model_single.RunModel(T, model,
+    [S, I, R, output] = model_single.RunModel(testT, model,
         bestTestStart[0], bestTestStart[1], bestTestStart[2],
         bestTestParams[model])
     lineS.set_ydata(S)
@@ -333,7 +316,7 @@ def PlotCalcError(event):
     #beta = sliderBeta.val
     #r0 = sliderR0.val
     #gamma = beta * startS / r0
-    #[_, _, _, output] = RunSIR(beta, gamma, startS, startI, startR, T)
+    #[_, _, _, output] = RunSIR(beta, gamma, startS, startI, startR, testT)
     #print("Error: " + str(CalcError(output, data["Sierra Leone"])))
 #buttonError.on_clicked(PlotCalcError)
 

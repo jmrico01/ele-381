@@ -3,9 +3,33 @@ import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 
-CAT_SUSP = 0
-CAT_PROB = 1
-CAT_CONF = 2
+CAT_SUSPECTED = 0
+CAT_PROBABLE = 1
+CAT_CONFIRMED = 2
+
+T = 10000
+startData = {
+    "Sierra Leone": [
+        7e6,
+        200,
+        0
+    ],
+    "Guinea": [
+        11.8e6,
+        250,
+        0
+    ],
+    "Liberia": [
+        4.39e6,
+        100,
+        0
+    ],
+    "total": [
+        7e6 + 11.8e6 + 4.39e6,
+        200 + 250 + 100,
+        0
+    ]
+}
 
 # Takes a date string, returns a datetime.date object
 # Returns None if invalid date string
@@ -67,11 +91,11 @@ def ReadData(dataFilePath, targetCountries, categories,
         for row in rows:
             category = -1
             if row[0] == suspectedStr:
-                category = CAT_SUSP
+                category = CAT_SUSPECTED
             elif row[0] == probableStr:
-                category = CAT_PROB
+                category = CAT_PROBABLE
             elif row[0] == confirmedStr:
-                category = CAT_CONF
+                category = CAT_CONFIRMED
 
             if category == -1:
                 continue
@@ -132,4 +156,4 @@ def ReadData(dataFilePath, targetCountries, categories,
 
 if __name__ == "__main__":
     ReadData("ebola_data_db_format.csv",
-        ["Sierra Leone"], [CAT_CONF], True, 5, True)
+        ["Sierra Leone"], [CAT_CONFIRMED], True, 5, True)
