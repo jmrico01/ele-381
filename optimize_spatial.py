@@ -77,14 +77,17 @@ def Optimize():
     errors = models.CalcErrorSpatialFromParams(T, startS, startI, startD,
         betaStart, gammaStart, dRate, get_data.bestParamsSingle,
         data, countries)
+    dummyProgress = 0
+    print("Initial errors:")
     print(errors)
+
+    print
+    print("Searching... (last error diff is displayed)")
 
     while np.sum(errors["single"]) <= np.sum(errors["spatial"]):
         beta = np.copy(betaStart)
         gamma = np.copy(gammaStart)
         for i in range(N):
-            betaModifier = np.random.uniform(-0.005, 0.005)
-            beta[i, i] += beta[i, i] * betaModifier
             betaSpreadFrac = np.random.uniform(0.0, 0.005)
             betaSpread = np.random.uniform(0.0, 1.0, N)
             betaSpread[i] = 0.0
@@ -92,7 +95,9 @@ def Optimize():
             beta[i, i] -= beta[i, i] * betaSpreadFrac
             beta[i, :] += betaSpread
 
-            gammaModifier = np.random.uniform(-0.01, 0.01)
+            betaModifier = np.random.uniform(-0.005, 0.005)
+            beta[i, i] += beta[i, i] * betaModifier
+            gammaModifier = np.random.uniform(-0.005, 0.005)
             gamma[i] += gamma[i] * gammaModifier
 
         #print(beta)
@@ -100,8 +105,9 @@ def Optimize():
         errors = models.CalcErrorSpatialFromParams(T, startS, startI, startD,
             beta, gamma, dRate, get_data.bestParamsSingle,
             data, countries)
-        print(np.sum(errors["spatial"]) - np.sum(errors["single"]))
-        #break
+        errorDiff = np.sum(errors["spatial"]) - np.sum(errors["single"])
+        dummyProgress = (dummyProgress + 1) % 60
+        models.PrintProgress(dummyProgress, 60, str(errorDiff))
 
     print(beta)
     print(gamma)
