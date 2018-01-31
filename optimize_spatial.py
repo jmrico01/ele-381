@@ -3,7 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
 
-import data
+import get_data
+import models
 
 # -- Import data
 dataFilePath = "ebola_data_db_format.csv"
@@ -12,11 +13,10 @@ countries = [
     "Guinea",
     "Liberia"
 ]
-N = len(countries)
 categories = [
-    data.CAT_CONFIRMED
+    get_data.CAT_CONFIRMED
 ]
-[data, n, dateStart, dateEnd] = data.ReadData(dataFilePath,
+[data, n, dateStart, dateEnd] = get_data.ReadData(dataFilePath,
     countries, categories, True, 5, False)
 print("----- Data Imported -----")
 print("Data points: " + str(n))
@@ -24,101 +24,117 @@ print("Start date:  " + str(dateStart))
 print("End date:    " + str(dateEnd))
 print("")
 
-startData = [
-    [ # "Sierra Leone": [
-        7e6,
-        200,
-        0
-    ],
-    [ # "Guinea": [
-        11.8e6,
-        250,
-        0
-    ],
-    [ # "Liberia": [
-        4.39e6,
-        100,
-        0
-    ]
-]
-bestParams = [
-    [ # "Sierra Leone": [
-        1.59937781919e-09,
-        0.01142412728
-    ],
-    [ # "Guinea": [
-        3.97879216751e-10,
-        0.0051461993053
-    ],
-    [ # "Liberia": [
-        1.59937781919e-09,
-        0.01142412728
-    ]
-]
+def Present(T, startS, startI, startD, beta, gamma, dRate, data):
+    [S, I, R, out] = models.RunModelSpatial(T, startS, startI, startD,
+        beta, gamma, dRate)
+    
+    errors = models.CalcErrorSpatialFromParams(T, startS, startI, startD,
+        beta, gamma, dRate, get_data.bestParamsSingle, data, countries)
 
-T = 10000
+    FIG_DPI = 100
+    N = len(startS)
+    fig, axes = plt.subplots(1, N)
+    fig.set_dpi(FIG_DPI)
+    fig.set_size_inches(1600 / FIG_DPI, 800 / FIG_DPI)
+    for i in range(N):
+        outSpatialResample = models.ResampleData(out[i], data[countries[i]])
+        lineSpatial, = axes[i].plot(outSpatialResample,
+            label="Spatial ( " + str(100.0 * errors["spatial"][i]) + "% )")
 
-startS = np.empty((N,))
-startI = np.empty((N,))
-startD = np.zeros((N,))
-totalPop = np.empty((N,))
-for i in range(N):
-    startS[i] = startData[i][0]
-    startI[i] = startData[i][1]
-    startD[i] = startData[i][2]
-totalPop = startS + startI + startD
+        [_, _, _, outSingle] = models.RunModelSingle(get_data.T, 1,
+            startS[i], startI[i], startD[i],
+            get_data.bestParamsSingle[countries[i]][1])
+        outSingleResample = models.ResampleData(outSingle, data[countries[i]])
+        lineSingle, = axes[i].plot(outSingleResample,
+            label="Single ( " + str(100.0 * errors["single"][i]) + "% )")
 
-beta = np.zeros((N, N))
-gamma = np.zeros((N,))
-dRate = 0.71
-for i in range(N):
-    beta[i][i] = bestParams[i][0]
-    gamma[i] = bestParams[i][1]
+        lineData, = axes[i].plot(data[countries[i]], label="Data")
+        axes[i].legend(handles=[lineSpatial, lineSingle, lineData])
 
-for i in range(N):
-    for j in range(N):
-        if i == j:
-            continue
-        beta[i][j] = beta[i][i] * 10**(-1)
+        axes[i].set_title(countries[i])
+        axes[i].set_xlabel("Time (days since 08/29/2014)")
+        axes[i].set_ylabel("Cumulative number of Ebola cases")
+    
+    plt.show()
 
-def Present():
-    pass
+def Optimize():
+    T = get_data.T
+    N = len(countries)
+    startS = np.empty((N,))
+    startI = np.empty((N,))
+    startD = np.zeros((N,))
+    totalPop = np.empty((N,))
+    for i in range(N):
+        startS[i] = get_data.startData[countries[i]][0]
+        startI[i] = get_data.startData[countries[i]][1]
+        startD[i] = get_data.startData[countries[i]][2]
+    totalPop = startS + startI + startD
 
-print(beta)
-print(gamma)
+    betaStart = np.array(get_data.bestParamsSpatial[0])
+    gammaStart = np.array(get_data.bestParamsSpatial[1])
+    dRate = get_data.FATALITY_RATE
 
-[S, I, D, out] = RunSpatialSIDS(T,
-    startS, startI, startD, beta, gamma, dRate)
+    errors = models.CalcErrorSpatialFromParams(T, startS, startI, startD,
+        betaStart, gammaStart, dRate, get_data.bestParamsSingle,
+        data, countries)
+    print(errors)
+
+    while np.sum(errors["single"]) <= np.sum(errors["spatial"]):
+        beta = np.copy(betaStart)
+        gamma = np.copy(gammaStart)
+        for i in range(N):
+            betaModifier = np.random.uniform(-0.005, 0.005)
+            beta[i, i] += beta[i, i] * betaModifier
+            betaSpreadFrac = np.random.uniform(0.0, 0.005)
+            betaSpread = np.random.uniform(0.0, 1.0, N)
+            betaSpread[i] = 0.0
+            betaSpread *= beta[i, i] * betaSpreadFrac / np.sum(betaSpread)
+            beta[i, i] -= beta[i, i] * betaSpreadFrac
+            beta[i, :] += betaSpread
+
+            gammaModifier = np.random.uniform(-0.01, 0.01)
+            gamma[i] += gamma[i] * gammaModifier
+
+        #print(beta)
+        #print(gamma)
+        errors = models.CalcErrorSpatialFromParams(T, startS, startI, startD,
+            beta, gamma, dRate, get_data.bestParamsSingle,
+            data, countries)
+        print(np.sum(errors["spatial"]) - np.sum(errors["single"]))
+        #break
+
+    print(beta)
+    print(gamma)
+    print(errors)
 
 if len(sys.argv) == 2:
     if sys.argv[1] == "opt":
         Optimize()
         exit()
     elif sys.argv[1] == "present":
-        Present(T, modelInd,
-            startData[country][0], startData[country][1], startData[country][2],
-            bestParams[country], data[country], country)
+        N = len(countries)
+        startS = np.empty((N,))
+        startI = np.empty((N,))
+        startD = np.zeros((N,))
+        totalPop = np.empty((N,))
+        for i in range(N):
+            startS[i] = get_data.startData[countries[i]][0]
+            startI[i] = get_data.startData[countries[i]][1]
+            startD[i] = get_data.startData[countries[i]][2]
+        totalPop = startS + startI + startD
+
+        beta = np.array(get_data.bestParamsSpatial[0])
+        gamma = np.array(get_data.bestParamsSpatial[1])
+        dRate = get_data.FATALITY_RATE
+        print(beta)
+        print(gamma)
+
+        Present(get_data.T, startS, startI, startD, beta, gamma, dRate, data)
         exit()
-    elif sys.argv[1] == "test":
-        # Pass through to test below
+    elif sys.argv[1] == "show":
+        # Pass through to model demo below
         pass
-    elif sys.argv[1] == "scratch":
-        [_, _, _, out0] = model_single.RunModel(T, 0,
-            startData["total"][0], startData["total"][1], startData["total"][2],
-            bestParams["total"][0])
-        [_, _, _, out1] = model_single.RunModel(T, 1,
-            startData["total"][0], startData["total"][1], startData["total"][2],
-            bestParams["total"][1])
-        out0 = model_single.ResampleData(out0, data["total"])
-        out1 = model_single.ResampleData(out1, data["total"])
-        lineM0, = plt.plot(out0, label="SIR")
-        lineM1, = plt.plot(out1, label="SIDS")
-        lineData,  = plt.plot(data["total"], label="Data")
-        plt.title("Model Predictions")
-        plt.xlabel("Time (days since 08/29/2014)")
-        plt.ylabel("Cumulative number of Ebola cases")
-        plt.legend(handles=[lineM0, lineM1, lineData])
-        plt.show()
+    elif sys.argv[1] == "random":
         exit()
     else:
         print("Unrecognized arguments")
@@ -130,19 +146,6 @@ else:
     print("Unrecognized arguments")
     exit()
 
-t = np.linspace(0.0, 1.0, T)
-#outS = S[0]#np.sum(S, axis=0)
-outI = np.sum(I, axis=0)
-#outD = D[0]#np.sum(D, axis=0)
-#lineS, = plt.plot(t, outS, color="orange", label="Susceptible")
-lineI, = plt.plot(t, outI, color="red", label="Infected")
-#lineD, = plt.plot(t, outD, color="black", label="Dead")
-plt.xlabel("Time (normalized 0 to 1)")
-plt.ylabel("Number of people")
-#plt.legend(handles=[lineS, lineI, lineD])
-plt.show()
-
-exit()
 # ----- Visualization test -----
 if len(sys.argv) != 2:
     print("Expected 1 argument")
@@ -157,7 +160,7 @@ totalPop = np.empty((N,))
 
 beta = np.empty((N, N))
 gamma = np.empty((N,))
-dRate = 0.71
+dRate = get_data.FATALITY_RATE
 
 startSAvg = 8e6
 startSRange = -0.8
@@ -181,12 +184,12 @@ gamma = np.random.normal(gammaAvg,
 print("----- Running Spatial SIDS -----")
 #print(startS[0])
 #print(startI[0])
-[S, I, D, out] = RunSpatialSIDS(T,
+[S, I, D, out] = RunSpatialSIDS(get_data.T,
     startS, startI, startD, beta, gamma, dRate)
 
 #print(S[0, :])
 if False:
-    t = np.linspace(0.0, 1.0, T)
+    t = np.linspace(0.0, 1.0, get_data.T)
     outS = np.sum(S, axis=0)
     outI = np.sum(I, axis=0)
     outD = np.sum(D, axis=0)
@@ -234,7 +237,7 @@ sliderTime = Slider(axisTime, 'Time', 0.0, 1.0, 0.0)
 
 def UpdatePlot(val):
     time = sliderTime.val
-    t = min(int(time * T), T-1)
+    t = min(int(time * get_data.T), get_data.T-1)
     PlotCircles(S[:, t], I[:, t], D[:, t])
 
 sliderTime.on_changed(UpdatePlot)

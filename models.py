@@ -10,6 +10,24 @@ def PrintProgress(count, total, status=""):
     sys.stdout.write("[%s] %s%s ...%s\r" % (bar, percent, "%", status))
     sys.stdout.flush()
 
+def ResampleData(src, dst):
+    xSrc = np.linspace(0.0, 1.0, len(src))
+    xDst = np.linspace(0.0, 1.0, len(dst))
+    resampled = np.interp(xDst, xSrc, src)
+    assert(len(resampled) == len(dst))
+    return resampled
+
+def LerpF(a, b, t):
+    return a * (1 - t) + b * t
+
+def GetDataValue(t, T, data):
+    T_DATA = len(data)
+    dataIndFloat = (float(t) / (T - 1)) * (T_DATA - 1)
+    dataIndMin = int(np.floor(dataIndFloat))
+    dataIndMax = min(int(np.ceil(dataIndFloat)), T_DATA - 1)
+    lerpT = dataIndFloat - int(dataIndFloat)
+    return LerpF(data[dataIndMin], data[dataIndMax], lerpT)
+
 def CalcDeltasSIR(S, I, R, params):
     # Takes in coefficients and the S, I, R of the previous time step
     # Returns deltas: [dS, dI, dR, dOut]
@@ -36,18 +54,6 @@ def CalcDeltasSIDS(S, I, R, params):
     dOut = newInfected
 
     return [dS, dI, dR, dOut]
-
-def LerpF(a, b, t):
-    return a * (1 - t) + b * t
-
-def GetDataValue(t, T, data):
-    T_DATA = len(data)
-    dataIndFloat = (float(t) / (T - 1)) * (T_DATA - 1)
-    dataIndMin = int(np.floor(dataIndFloat))
-    dataIndMax = min(int(np.ceil(dataIndFloat)), T_DATA - 1)
-    lerpT = dataIndFloat - int(dataIndFloat)
-    return LerpF(data[dataIndMin], data[dataIndMax], lerpT)
-
 
 def BatchSIR(T, modelInd, startS, startI, startR,
     data, params, progress = True):
@@ -93,7 +99,7 @@ def BatchSIR(T, modelInd, startS, startI, startR,
         print("")
     return np.sqrt(errors) / np.average(data)
 
-def RunModel(T, modelInd, startS, startI, startR, params):
+def RunModelSingle(T, modelInd, startS, startI, startR, params):
     # Run a single instance of SIR for the given parameters.
     # Output S, I, R, and the output modeled data
     S = [startS] * T
@@ -121,20 +127,73 @@ def RunModel(T, modelInd, startS, startI, startR, params):
     
     return [S, I, R, out]
 
-def ResampleData(src, dst):
-    xSrc = np.linspace(0.0, 1.0, len(src))
-    xDst = np.linspace(0.0, 1.0, len(dst))
-    resampled = np.interp(xDst, xSrc, src)
-    assert(len(resampled) == len(dst))
-    return resampled
-
-def CalcError(model, data):
+def CalcErrorSingle(model, data):
     modelResample = ResampleData(model, data)
     #diff = np.divide(modelResample - data, data, where=data!=0)
     diff = modelResample - data
     return np.sqrt(np.sum(diff * diff) / len(diff)) / np.average(data)
 
-def CalcErrorFromParams(T, modelInd, startS, startI, startR, params, data):
-    [_, _, _, out] = RunModel(T, modelInd,
+def CalcErrorSingleFromParams(T, modelInd,
+startS, startI, startR, params, data):
+    [_, _, _, out] = RunModelSingle(T, modelInd,
         startS, startI, startR, params)
-    return CalcError(out, data)
+    return CalcErrorSingle(out, data)
+
+def CalcDeltasSpatial(S, I, D, beta, gamma, dRate):
+    betaSI = beta * S[:, None] * I[:, None]
+    outS = np.sum(betaSI, axis=1)
+    inI  = np.sum(betaSI, axis=0)
+    newD = dRate * gamma * I
+    newS = (1.0 - dRate) * gamma * I
+    dS   = -outS + newS
+    dI   = inI - newD - newS
+    dD   = newD
+    dOut = inI
+
+    return [dS, dI, dD, dOut]
+
+def RunModelSpatial(T, startS, startI, startD, beta, gamma, dRate):
+    N = len(startS)
+    assert(len(startI) == N)
+    assert(len(startD) == N)
+    assert(beta.shape == (N, N))
+
+    S   = np.empty((N, T))
+    I   = np.empty((N, T))
+    D   = np.empty((N, T))
+    out = np.zeros((N, T))
+    S[:, 0] = startS
+    I[:, 0] = startI
+    D[:, 0] = startD
+
+    for t in range(1, T):
+        [dS, dI, dD, dOut] = CalcDeltasSpatial(
+            S[:, t-1], I[:, t-1], D[:, t-1], beta, gamma, dRate)
+        S[:, t] = S[:, t-1] + dS
+        I[:, t] = I[:, t-1] + dI
+        D[:, t] = D[:, t-1] + dD
+        out[:, t] = out[:, t-1] + dOut
+    
+    return [S, I, D, out]
+
+def CalcErrorSpatialFromParams(T, startS, startI, startD,
+beta, gamma, dRate, bestParamsSingle, data, countries):
+    errors = {
+        "spatial": [],
+        "single": []
+    }
+    [S, I, R, out] = RunModelSpatial(T, startS, startI, startD,
+        beta, gamma, dRate)
+        
+    N = len(startS)
+    for i in range(N):
+        errors["spatial"].append(round(CalcErrorSingle(
+            out[i], data[countries[i]]), 6))
+
+        [_, _, _, outSingle] = RunModelSingle(T, 1,
+            startS[i], startI[i], startD[i],
+            bestParamsSingle[countries[i]][1])
+        errors["single"].append(round(CalcErrorSingle(
+            outSingle, data[countries[i]]), 6))
+    
+    return errors

@@ -7,6 +7,9 @@ CAT_SUSPECTED = 0
 CAT_PROBABLE = 1
 CAT_CONFIRMED = 2
 
+COUNTRY_TOTAL = "Total"
+FATALITY_RATE = 0.71
+
 T = 10000
 startData = {
     "Sierra Leone": [
@@ -24,12 +27,82 @@ startData = {
         100,
         0
     ],
-    "total": [
+    COUNTRY_TOTAL: [
         7e6 + 11.8e6 + 4.39e6,
         200 + 250 + 100,
         0
     ]
 }
+bestParamsSingle = {
+    "Sierra Leone": [
+        [
+            3.41131913825e-09,
+            0.0244659446576
+        ],
+        [
+            3.41131913825e-09,
+            0.0244659446576,
+            FATALITY_RATE
+        ],
+    ],
+    "Guinea": [
+        [
+            4.48707220505e-10,
+            0.00573472410123
+        ],
+        [
+            4.48707220505e-10,
+            0.00573472410123,
+            FATALITY_RATE
+        ],
+    ],
+    "Liberia": [
+        [
+            5.78252080412e-09,
+            0.0262566408751
+        ],
+        [
+            5.76711809134e-09,
+            0.0261867019139,
+            FATALITY_RATE
+        ],
+    ],
+    COUNTRY_TOTAL: [
+        [
+            6.61558851549e-10,
+            0.0159484101774
+        ],
+        [
+            6.61558851549e-10,
+            0.0159484101774,
+            FATALITY_RATE
+        ],
+    ],
+}
+bestParamsSpatial = [
+    [
+        [
+            3.41131913825e-09,
+            0.0,
+            0.0,
+        ],
+        [
+            0.0,
+            4.48707220505e-10,
+            0.0
+        ],
+        [
+            0.0,
+            0.0,
+            5.76711809134e-09
+        ]
+    ],
+    [
+        0.0244659446576,
+        0.00573472410123,
+        0.0261867019139
+    ]
+]
 
 # Takes a date string, returns a datetime.date object
 # Returns None if invalid date string
@@ -142,9 +215,9 @@ def ReadData(dataFilePath, targetCountries, categories,
             data[country] = np.convolve(data[country],
                 np.ones(smoothWnd,) / smoothWnd, mode="valid")
 
-    data["total"] = np.zeros((len(data[targetCountries[0]]),))
+    data[COUNTRY_TOTAL] = np.zeros((len(data[targetCountries[0]]),))
     for country in targetCountries:
-        data["total"] += data[country]
+        data[COUNTRY_TOTAL] += data[country]
 
     if (plot):
         for country, infected in data.items():

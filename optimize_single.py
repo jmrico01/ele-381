@@ -3,23 +3,36 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
 
-import data
-import model_single
+import get_data
+import models
 
-def CalcCoefValues(mid, orderOfMag, n):
-    exp = 2.0
-    values = np.linspace(0.0, 1.0, n)**exp
-    minVal = mid * 10.0**orderOfMag
-    maxVal = mid / 10.0**orderOfMag
-    values = values * (maxVal - minVal) + minVal
-    return values
+# -- Import data
+dataFilePath = "ebola_data_db_format.csv"
+countries = [
+    "Sierra Leone",
+    "Guinea",
+    "Liberia"
+]
+categories = [
+    get_data.CAT_CONFIRMED
+]
+[data, n, dateStart, dateEnd] = get_data.ReadData(dataFilePath,
+    countries, categories, True, 5, False)
+#print("----- Data Imported -----")
+#print("Data points: " + str(n))
+#print("Start date:  " + str(dateStart))
+#print("End date:    " + str(dateEnd))
+#print("")
+
+country = get_data.COUNTRY_TOTAL
+modelInd = 1
 
 def Present(T, modelInd, startS, startI, startR, params, data, country):
-    [S, I, R, out] = model_single.RunModel(T, modelInd,
+    [S, I, R, out] = models.RunModelSingle(T, modelInd,
         startS, startI, startR, params[modelInd])
-    error = round(model_single.CalcError(out, data), 6)
-    print("Error: " + str(error))
-    out = model_single.ResampleData(out, data)
+    error = round(models.CalcErrorSingle(out, data), 6)
+    #print("Error: " + str(error))
+    out = models.ResampleData(out, data)
     lineModel, = plt.plot(out, label="Model")
     lineData,  = plt.plot(data, label="Data")
     plotTitle = country
@@ -34,102 +47,40 @@ def Present(T, modelInd, startS, startI, startR, params, data, country):
     plt.legend(handles=[lineModel, lineData])
     plt.show()
 
-# -- Import data
-dataFilePath = "ebola_data_db_format.csv"
-countries = [
-    "Sierra Leone",
-    "Guinea",
-    "Liberia"
-]
-categories = [
-    data.CAT_CONFIRMED
-]
-[data, n, dateStart, dateEnd] = data.ReadData(dataFilePath,
-    countries, categories, True, 5, False)
-#print("----- Data Imported -----")
-#print("Data points: " + str(n))
-#print("Start date:  " + str(dateStart))
-#print("End date:    " + str(dateEnd))
-#print("")
-
-bestParams = {
-    "Sierra Leone": [
-        [
-            3.41131913825e-09,
-            0.0244659446576
-        ],
-        [
-            3.41131913825e-09,
-            0.0244659446576,
-            0.71
-        ],
-    ],
-    "Guinea": [
-        [
-            4.48707220505e-10,
-            0.00573472410123
-        ],
-        [
-            4.48707220505e-10,
-            0.00573472410123,
-            0.71
-        ],
-    ],
-    "Liberia": [
-        [
-            5.78252080412e-09,
-            0.0262566408751
-        ],
-        [
-            5.76711809134e-09,
-            0.0261867019139,
-            0.71
-        ],
-    ],
-    "total": [
-        [
-            6.70014902712e-10,
-            0.0161597245118
-        ],
-        [
-            6.7880248618e-10,
-            0.0163670529134,
-            0.71
-        ],
-    ],
-}
-
-country = "Guinea"
-modelInd = 0
+def CalcCoefValues(mid, orderOfMag, n):
+    exp = 2.0
+    values = np.linspace(0.0, 1.0, n)**exp
+    minVal = mid * 10.0**orderOfMag
+    maxVal = mid / 10.0**orderOfMag
+    values = values * (maxVal - minVal) + minVal
+    return values
 
 def Optimize():
     supervised = True
 
     print("----- Optimizing SIR Parameters -----")
-    startS = data.startData[country][0]
-    startI = data.startData[country][1]
-    startR = data.startData[country][2]
+    startS = get_data.startData[country][0]
+    startI = get_data.startData[country][1]
+    startR = get_data.startData[country][2]
 
     paramIters = 100
-    betaMid = bestParams[country][modelInd][0]
+    betaMid = get_data.bestParamsSingle[country][modelInd][0]
     #betaRangeInitial = 1
     betaRange = 0.1 # in orders of magnitude
 
-    gammaMid = bestParams[country][modelInd][1]
+    gammaMid = get_data.bestParamsSingle[country][modelInd][1]
     #gammaRangeInitial = 0.
     gammaRange = 0.1
-
-    deadRate = 0.71
 
     nextBacktrack = 1
     dRange = 0.5
 
     params = [betaMid, gammaMid]
     if modelInd == 1:
-        params.append(deadRate)
+        params.append(get_data.FATALITY_RATE)
 
-    minError = model_single.CalcErrorFromParams(
-        data.T, modelInd, startS, startI, startR, params,
+    minError = models.CalcErrorSingleFromParams(
+        get_data.T, modelInd, startS, startI, startR, params,
         data[country]
     )
     minParams = [-1, -1]
@@ -142,8 +93,8 @@ def Optimize():
         print("Gamma range: " + str(np.min(gamma)) + " - " + str(np.max(gamma)))
         params = [beta, gamma]
         if modelInd == 1:
-            params.append(deadRate)
-        errors = model_single.BatchSIR(data.T, modelInd, startS, startI, startR,
+            params.append(get_data.FATALITY_RATE)
+        errors = models.BatchSIR(get_data.T, modelInd, startS, startI, startR,
             data[country], params, True)
 
         [minBetaInd, minGammaInd] = np.unravel_index(np.argmin(errors),
@@ -165,9 +116,9 @@ def Optimize():
             print("> Error: " + str(iterMinError))
             params = [beta[minBetaInd], gamma[minGammaInd]]
             if modelInd == 1:
-                params.append(deadRate)
-            print("> Real Error: " + str(model_single.CalcErrorFromParams(
-                data.T, modelInd, startS, startI, startR, params,
+                params.append(get_data.FATALITY_RATE)
+            print("> Real Error: " + str(models.CalcErrorSingleFromParams(
+                get_data.T, modelInd, startS, startI, startR, params,
                 data[country]
             )))
             plotCurve = True
@@ -184,11 +135,11 @@ def Optimize():
         if plotCurve:
             params = [beta[minBetaInd], gamma[minGammaInd]]
             if modelInd == 1:
-                params.append(deadRate)
-            [_, _, _, out] = model_single.RunModel(data.T, modelInd,
+                params.append(get_data.FATALITY_RATE)
+            [_, _, _, out] = models.RunModelSingle(get_data.T, modelInd,
                 startS, startI, startR, params)
             if supervised:
-                outResample = model_single.ResampleData(out, data[country])
+                outResample = models.ResampleData(out, data[country])
                 plt.plot(outResample)
                 plt.plot(data[country])
                 plt.show()
@@ -203,31 +154,31 @@ if len(sys.argv) == 2:
         Optimize()
         exit()
     elif sys.argv[1] == "present":
-        Present(data.T, modelInd,
-            data.startData[country][0],
-            data.startData[country][1],
-            data.startData[country][2],
-            bestParams[country], data[country], country)
+        Present(get_data.T, modelInd,
+            get_data.startData[country][0],
+            get_data.startData[country][1],
+            get_data.startData[country][2],
+            get_data.bestParamsSingle[country], data[country], country)
         exit()
-    elif sys.argv[1] == "test":
-        # Pass through to test below
+    elif sys.argv[1] == "show":
+        # Pass through to model demo below
         pass
-    elif sys.argv[1] == "scratch":
-        [_, _, _, out0] = model_single.RunModel(data.T, 0,
-            data.startData["total"][0],
-            data.startData["total"][1],
-            data.startData["total"][2],
-            bestParams["total"][0])
-        [_, _, _, out1] = model_single.RunModel(data.T, 1,
-            data.startData["total"][0],
-            data.startData["total"][1],
-            data.startData["total"][2],
-            bestParams["total"][1])
-        out0 = model_single.ResampleData(out0, data["total"])
-        out1 = model_single.ResampleData(out1, data["total"])
+    elif sys.argv[1] == "random":
+        [_, _, _, out0] = models.RunModelSingle(get_data.T, 0,
+            get_data.startData[get_data.COUNTRY_TOTAL][0],
+            get_data.startData[get_data.COUNTRY_TOTAL][1],
+            get_data.startData[get_data.COUNTRY_TOTAL][2],
+            get_data.bestParamsSingle[get_data.COUNTRY_TOTAL][0])
+        [_, _, _, out1] = models.RunModelSingle(get_data.T, 1,
+            get_data.startData[get_data.COUNTRY_TOTAL][0],
+            get_data.startData[get_data.COUNTRY_TOTAL][1],
+            get_data.startData[get_data.COUNTRY_TOTAL][2],
+            get_data.bestParamsSingle[get_data.COUNTRY_TOTAL][1])
+        out0 = models.ResampleData(out0, data[get_data.COUNTRY_TOTAL])
+        out1 = models.ResampleData(out1, data[get_data.COUNTRY_TOTAL])
         lineM0, = plt.plot(out0, label="SIR")
         lineM1, = plt.plot(out1, label="SIDS")
-        lineData,  = plt.plot(data["total"], label="Data")
+        lineData,  = plt.plot(data[get_data.COUNTRY_TOTAL], label="Data")
         plt.title("Model Predictions")
         plt.xlabel("Time (days since 08/29/2014)")
         plt.ylabel("Cumulative number of Ebola cases")
@@ -259,12 +210,12 @@ bestTestParams = [
     [
         5e-10,
         0.002,
-        0.71
+        get_data.FATALITY_RATE
     ]
 ]
 sliderRange = 2.0
 
-[S, I, R, out] = model_single.RunModel(testT, model,
+[S, I, R, out] = models.RunModelSingle(testT, model,
     bestTestStart[0], bestTestStart[1], bestTestStart[2],
     bestTestParams[model])
 
@@ -296,7 +247,7 @@ def UpdatePlot(val):
     gamma = sliderGamma.val
     bestTestParams[model][0] = beta
     bestTestParams[model][1] = gamma
-    [S, I, R, output] = model_single.RunModel(testT, model,
+    [S, I, R, output] = models.RunModelSingle(testT, model,
         bestTestStart[0], bestTestStart[1], bestTestStart[2],
         bestTestParams[model])
     lineS.set_ydata(S)
@@ -317,7 +268,7 @@ def PlotCalcError(event):
     #r0 = sliderR0.val
     #gamma = beta * startS / r0
     #[_, _, _, output] = RunSIR(beta, gamma, startS, startI, startR, testT)
-    #print("Error: " + str(CalcError(output, data["Sierra Leone"])))
+    #print("Error: " + str(CalcErrorSingle(output, data["Sierra Leone"])))
 #buttonError.on_clicked(PlotCalcError)
 
 plt.show()
