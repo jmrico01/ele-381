@@ -65,6 +65,9 @@ def TweakParameters(betaStart, gammaStart):
     beta = np.copy(betaStart)
     gamma = np.copy(gammaStart)
 
+    BETA_DFRAC = 0.05
+    GAMMA_DFRAC = 0.01
+
     nextComponent = nextComponent + 1
     if tweakBeta:
         if nextComponent >= len(gammaStart) * len(gammaStart):
@@ -77,15 +80,15 @@ def TweakParameters(betaStart, gammaStart):
     
     if tweakBeta:
         nextInd = np.unravel_index(nextComponent, beta.shape)
-        beta[nextInd] += beta[nextInd] * np.random.uniform(-0.1, 0.1)
+        beta[nextInd] += beta[nextInd] \
+            * np.random.uniform(-BETA_DFRAC, BETA_DFRAC)
     else:
         nextInd = nextComponent
-        gamma[nextInd] += gamma[nextInd] * np.random.uniform(-0.05, 0.05)
+        gamma[nextInd] += gamma[nextInd] \
+            * np.random.uniform(-GAMMA_DFRAC, GAMMA_DFRAC)
 
     """
-    BETA_DFRAC = 0.001
     beta += beta * np.random.uniform(-BETA_DFRAC, BETA_DFRAC, beta.shape)
-    GAMMA_DFRAC = 0.0001
     gamma += gamma * np.random.uniform(-GAMMA_DFRAC, GAMMA_DFRAC, gamma.shape)
     """
     
