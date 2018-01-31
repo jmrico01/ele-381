@@ -166,7 +166,7 @@ def Optimize():
     print(errors)
 
     print
-    print("Searching... (last error diff is displayed)")
+    print("Searching...")
     WriteBestParams(minBeta, minGamma)
 
     while True: #np.sum(errors["single"]) <= np.sum(errors["spatial"]):
@@ -192,8 +192,8 @@ def Optimize():
             betaStart = minBeta
             gammaStart = minGamma
 
-        dummyProgress = (dummyProgress + 1) % 60
-        models.PrintProgress(dummyProgress, 60, str(errorDiff))
+        #dummyProgress = (dummyProgress + 1) % 60
+        #models.PrintProgress(dummyProgress, 60, str(errorDiff))
 
 if len(sys.argv) == 2:
     if sys.argv[1] == "opt":
